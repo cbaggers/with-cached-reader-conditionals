@@ -1,6 +1,71 @@
-;;;; with-cached-reader-conditionals.lisp
-
 (in-package #:with-cached-reader-conditionals)
 
-;;; "with-cached-reader-conditionals" goes here. Hacks and glory await!
+;;; If X is a symbol, see whether it is present in *FEATURES*. Also
+;;; handle arbitrary combinations of atoms using NOT, AND, OR.
+(defun featurep (x)
+  (typecase x
+    (cons
+     (case (car x)
+       ((:not not)
+        (cond
+          ((cddr x)
+           (error "too many subexpressions in feature expression: ~S" x))
+          ((null (cdr x))
+           (error "too few subexpressions in feature expression: ~S" x))
+          (t (not (featurep (cadr x))))))
+       ((:and and) (every #'featurep (cdr x)))
+       ((:or or) (some #'featurep (cdr x)))
+       (t (error "unknown operator in feature expression: ~S." x))))
+    (symbol (not (null (member x *features* :test #'eq))))
+    (t (error "invalid feature expression: ~S" x))))
 
+(defun dirty-featurep (x)
+  "Ugly in implementation but will always match the implementations logic :|"
+  (with-input-from-string (s (format nil "#+~s t" x))
+    (read s nil nil)))
+
+(defclass feature-cache () ((cache :initform nil)))
+
+(defvar *keyword-package* (find-package :keyword))
+
+(defun make-reader-conditional-caching-sharp-plus-minus ()
+  (let ((cache (make-instance 'feature-cache)))
+    (list (lambda (stream sub-char numarg)
+	    (declare (ignore numarg))
+	    (let ((feature-expr (let ((*package* *keyword-package*)
+				      ;; sbcl also set *reader-package* to nil
+				      ;; that was internal to sbcl
+				      (*read-suppress* nil))
+				  (read stream t nil t))))
+	      (push feature-expr (slot-value cache 'cache))
+	      (if (char= (if (featurep feature-expr) #\+ #\-)
+			 sub-char)
+		  (read stream t nil t)
+		  (let ((*read-suppress* t))
+		    (read stream t nil t)
+		    (values)))))
+	  cache)))
+
+(defmethod minimize-feature-list (feature-expressions-seen)
+  (set-difference (remove-duplicates
+		   (alexandria:flatten feature-expressions-seen))
+		  '(:and :or)))
+
+(defmethod cached-feature-list ((cache feature-cache))
+  (minimize-feature-list (slot-value cache 'cache)))
+
+(defun call-with-cached-reader-conditionals (func &rest args)
+  (destructuring-bind (rfunc cache)
+       (make-reader-conditional-caching-sharp-plus-minus)
+     (let ((*readtable* (copy-readtable)))
+       (set-dispatch-macro-character #\# #\+ rfunc *readtable*)
+       (set-dispatch-macro-character #\# #\- rfunc *readtable*)
+       (values (apply func args) (cached-feature-list cache)))))
+
+(defmacro with-cached-reader-conditionals (&body body)
+  `(call-with-cached-reader-conditionals (lambda () ,@body)))
+
+(defun test (string)
+  (with-cached-reader-conditionals
+    (with-input-from-string (stream string)
+      (loop for l = (read stream nil) while l collect l))))

@@ -2,8 +2,8 @@
 
 (asdf:defsystem #:with-cached-reader-conditionals
   :description "Describe with-cached-reader-conditionals here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :author "Chris Bagley <chris.bagley@gmail.com>"
+  :license "BSD 2 Clause"
   :serial t
   :depends-on (#:alexandria)
   :components ((:file "package")
