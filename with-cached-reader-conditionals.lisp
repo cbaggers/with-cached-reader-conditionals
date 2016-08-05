@@ -64,8 +64,3 @@
 
 (defmacro with-cached-reader-conditionals (&body body)
   `(call-with-cached-reader-conditionals (lambda () ,@body)))
-
-(defun test (string)
-  (with-cached-reader-conditionals
-    (with-input-from-string (stream string)
-      (loop for l = (read stream nil) while l collect l))))
