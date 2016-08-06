@@ -5,6 +5,5 @@
   :author "Chris Bagley <chris.bagley@gmail.com>"
   :license "BSD 2 Clause"
   :serial t
-  :depends-on (#:alexandria)
   :components ((:file "package")
                (:file "with-cached-reader-conditionals")))
