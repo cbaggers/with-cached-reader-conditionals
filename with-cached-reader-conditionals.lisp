@@ -32,27 +32,45 @@
   (let ((cache (make-instance 'feature-cache)))
     (list (lambda (stream sub-char numarg)
 	    (declare (ignore numarg))
-	    (let ((feature-expr (let ((*package* *keyword-package*)
-				      ;; sbcl also set *reader-package* to nil
-				      ;; that was internal to sbcl
-				      (*read-suppress* nil))
-				  (read stream t nil t))))
-	      (push feature-expr (slot-value cache 'cache))
-	      (if (char= (if (featurep feature-expr) #\+ #\-)
-			 sub-char)
+	    (let* ((feature-expr (let ((*package* *keyword-package*)
+				       ;; sbcl also set *reader-package* to nil
+				       ;; that was internal to sbcl
+				       (*read-suppress* nil))
+				   (read stream t nil t)))
+		   (match (char= (if (featurep feature-expr) #\+ #\-)
+				 sub-char)))
+	      (push (list feature-expr match) (slot-value cache 'cache))
+	      (if match
 		  (read stream t nil t)
 		  (let ((*read-suppress* t))
 		    (read stream t nil t)
 		    (values)))))
 	  cache)))
 
-(defmethod minimize-feature-list (feature-expressions-seen)
-  (set-difference (remove-duplicates
-		   (alexandria:flatten feature-expressions-seen))
-		  '(:and :or)))
+(defun feature-expr-key (expr)
+  (etypecase expr
+    (atom expr)
+    (list (second expr))))
+
+(defun sort-feature-expr (feature-expr)
+  (etypecase feature-expr
+    (atom feature-expr)
+    (list (cons (first feature-expr)
+		(sort (mapcar #'sort-feature-expr (rest feature-expr))
+		      #'string< :key #'feature-expr-key)))))
+
+(defmethod normalize-feature-list (pairs)
+  (labels ((sort-inner (pair)
+	     (destructuring-bind (feature-expr applies?) pair
+	       (list (sort-feature-expr feature-expr) applies?)))
+	   (pair-key (pair)
+	     (feature-expr-key (first pair))))
+    (let* ((inner-sorted (mapcar #'sort-inner pairs))
+	   (dedupd (remove-duplicates inner-sorted :test #'equal)))
+      (sort dedupd #'string< :key #'pair-key))))
 
 (defmethod cached-feature-list ((cache feature-cache))
-  (minimize-feature-list (slot-value cache 'cache)))
+  (normalize-feature-list (slot-value cache 'cache)))
 
 (defun call-with-cached-reader-conditionals (func &rest args)
   (destructuring-bind (rfunc cache)
