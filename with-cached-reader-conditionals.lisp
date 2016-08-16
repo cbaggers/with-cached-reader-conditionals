@@ -37,9 +37,9 @@
 				       ;; that was internal to sbcl
 				       (*read-suppress* nil))
 				   (read stream t nil t)))
-		   (match (char= (if (featurep feature-expr) #\+ #\-)
-				 sub-char)))
-	      (push (list feature-expr match) (slot-value cache 'cache))
+		   (present (featurep feature-expr))
+		   (match (char= sub-char (if present #\+ #\-))))
+	      (push (list feature-expr present) (slot-value cache 'cache))
 	      (if match
 		  (read stream t nil t)
 		  (let ((*read-suppress* t))
