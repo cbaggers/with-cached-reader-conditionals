@@ -74,11 +74,29 @@
 
 (defun call-with-cached-reader-conditionals (func &rest args)
   (destructuring-bind (rfunc cache)
-       (make-reader-conditional-caching-sharp-plus-minus)
-     (let ((*readtable* (copy-readtable)))
-       (set-dispatch-macro-character #\# #\+ rfunc *readtable*)
-       (set-dispatch-macro-character #\# #\- rfunc *readtable*)
-       (values (apply func args) (cached-feature-list cache)))))
+      (make-reader-conditional-caching-sharp-plus-minus)
+    (let ((*readtable* (copy-readtable)))
+      (set-dispatch-macro-character #\# #\+ rfunc *readtable*)
+      (set-dispatch-macro-character #\# #\- rfunc *readtable*)
+      (values (apply func args) (cached-feature-list cache)))))
 
 (defmacro with-cached-reader-conditionals (&body body)
   `(call-with-cached-reader-conditionals (lambda () ,@body)))
+
+(defun flatten-features (feature-expressions)
+  (labels ((flatten (x)
+             (labels ((rec (x acc)
+                        (cond ((null x) acc)
+                              ((atom x) (cons x acc))
+                              (t (rec (car x)
+                                      (rec (cdr x) acc))))))
+               (rec x nil))))
+    (let* ((ignored '(:or :and or and nil t))
+           (features (remove-if (lambda (x) (member x ignored))
+                                (sort
+                                 (remove-duplicates
+                                  (remove-if-not
+                                   #'keywordp
+                                   (flatten feature-expressions)))
+                                 #'string<))))
+      (mapcar (lambda (x) (list x (featurep x))) features))))
