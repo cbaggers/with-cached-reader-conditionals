@@ -31,21 +31,21 @@
 (defun make-reader-conditional-caching-sharp-plus-minus ()
   (let ((cache (make-instance 'feature-cache)))
     (list (lambda (stream sub-char numarg)
-	    (declare (ignore numarg))
-	    (let* ((feature-expr (let ((*package* *keyword-package*)
-				       ;; sbcl also set *reader-package* to nil
-				       ;; that was internal to sbcl
-				       (*read-suppress* nil))
-				   (read stream t nil t)))
-		   (present (featurep feature-expr))
-		   (match (char= sub-char (if present #\+ #\-))))
-	      (push (list feature-expr present) (slot-value cache 'cache))
-	      (if match
-		  (read stream t nil t)
-		  (let ((*read-suppress* t))
-		    (read stream t nil t)
-		    (values)))))
-	  cache)))
+            (declare (ignore numarg))
+            (let* ((feature-expr (let ((*package* *keyword-package*)
+                                       ;; sbcl also set *reader-package* to nil
+                                       ;; that was internal to sbcl
+                                       (*read-suppress* nil))
+                                   (read stream t nil t)))
+                   (present (featurep feature-expr))
+                   (match (char= sub-char (if present #\+ #\-))))
+              (push (list feature-expr present) (slot-value cache 'cache))
+              (if match
+                  (read stream t nil t)
+                  (let ((*read-suppress* t))
+                    (read stream t nil t)
+                    (values)))))
+          cache)))
 
 (defun feature-expr-key (expr)
   (etypecase expr
@@ -56,20 +56,20 @@
   (etypecase feature-expr
     (atom feature-expr)
     (list (cons (first feature-expr)
-		(sort (mapcar #'sort-feature-expr (rest feature-expr))
-		      #'string< :key #'feature-expr-key)))))
+                (sort (mapcar #'sort-feature-expr (rest feature-expr))
+                      #'string< :key #'feature-expr-key)))))
 
-(defmethod normalize-feature-list (pairs)
+(defun normalize-feature-list (pairs)
   (labels ((sort-inner (pair)
-	     (destructuring-bind (feature-expr applies?) pair
-	       (list (sort-feature-expr feature-expr) applies?)))
-	   (pair-key (pair)
-	     (feature-expr-key (first pair))))
+             (destructuring-bind (feature-expr applies?) pair
+               (list (sort-feature-expr feature-expr) applies?)))
+           (pair-key (pair)
+             (feature-expr-key (first pair))))
     (let* ((inner-sorted (mapcar #'sort-inner pairs))
-	   (dedupd (remove-duplicates inner-sorted :test #'equal)))
+           (dedupd (remove-duplicates inner-sorted :test #'equal)))
       (sort dedupd #'string< :key #'pair-key))))
 
-(defmethod cached-feature-list ((cache feature-cache))
+(defun cached-feature-list (cache)
   (normalize-feature-list (slot-value cache 'cache)))
 
 (defun call-with-cached-reader-conditionals (func &rest args)
